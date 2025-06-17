@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE hibernate-configuration PUBLIC
+        "-//Hibernate/Hibernate Configuration DTD 4.0//EN"
+        "http://hibernate.org/dtd/hibernate-configuration-4.0.dtd">
+<hibernate-configuration>
+
+    <session-factory>
+
+        <!-- Conexão com o banco -->
+        <property name="hibernate.connection.driver_class">com.mysql.cj.jdbc.Driver</property>
+        <property name="hibernate.connection.url">jdbc:mysql://localhost:3306/autoservice?createDatabaseIfNotExist=true&amp;useSSL=false&amp;useTimezone=true&amp;serverTimezone=UTC</property>
+        <property name="hibernate.connection.username">root</property>
+        <property name="hibernate.connection.password">root</property>
+
+        <!-- Dialeto do MySQL -->
+        <property name="hibernate.dialect">org.hibernate.dialect.MySQL8Dialect</property>
+
+        <!-- Mostrar SQL no console -->
+        <property name="hibernate.show_sql">true</property>
+
+        <!-- Atualiza o schema automaticamente -->
+        <property name="hibernate.hbm2ddl.auto">update</property>
+
+        <!-- Formatação de SQL -->
+        <property name="hibernate.format_sql">true</property>
+
+        <!-- Mapeamentos das entidades -->
+        <mapping class="br.com.autoservice.Carro"/>
+        <mapping class="br.com.autoservice.Servico"/>
+        <mapping class="br.com.autoservice.Usuario"/>
+        <mapping class="br.com.autoservice.Produto"/>
+        <mapping class="br.com.autoservice.Venda"/>
+
+
+    </session-factory>
+</hibernate-configuration>
