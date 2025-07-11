@@ -2,45 +2,43 @@ package br.com.autoservice;
 
 import org.hibernate.Session;
 import org.hibernate.query.Query;
-import javax.swing.*;
 import java.util.List;
 import java.time.LocalDate;
 
 public class CarroService {
 
     public static List<Carro> listarCarros() {
-    try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-        session.beginTransaction();
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            session.beginTransaction();
 
-        Query<Carro> query = session.createQuery("FROM Carro", Carro.class);
-        List<Carro> carros = query.list();
+            Query<Carro> query = session.createQuery("FROM Carro WHERE ativo = true", Carro.class);
+            List<Carro> carros = query.list();
 
-        session.getTransaction().commit();
+            session.getTransaction().commit();
 
-        if (carros.isEmpty()) {
-            System.out.println("Nenhum carro encontrado.");
-        } else {
-            System.out.println("Lista de carros:");
-            for (Carro carro : carros) {
-                System.out.println(
-                    "ID: " + carro.getId() +
-                    ", Cliente: " + carro.getCliente() +
-                    ", Placa: " + carro.getPlaca() +
-                    ", Marca: " + carro.getMarca() +
-                    ", Modelo: " + carro.getModelo() +
-                    ", Ano: " + carro.getAno()
-                );
+            if (carros.isEmpty()) {
+                System.out.println("Nenhum carro encontrado.");
+            } else {
+                System.out.println("Lista de carros:");
+                for (Carro carro : carros) {
+                    System.out.println(
+                        "ID: " + carro.getId() +
+                        ", Cliente: " + carro.getCliente() +
+                        ", Placa: " + carro.getPlaca() +
+                        ", Marca: " + carro.getMarca() +
+                        ", Modelo: " + carro.getModelo() +
+                        ", Ano: " + carro.getAno()
+                    );
+                }
             }
+
+            return carros;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return List.of();
         }
-
-        return carros;  // Retorna a lista de carros
-
-    } catch (Exception e) {
-        e.printStackTrace();
-        return List.of();  // Retorna uma lista vazia em caso de erro
     }
-}
-
 
     public static void salvarCarro(String placa, String marca, String modelo, int ano, String cliente) {
         Carro carro = new Carro(placa, marca, modelo, ano, cliente);
@@ -84,9 +82,10 @@ public class CarroService {
 
             Carro carro = session.get(Carro.class, id);
             if (carro != null) {
-                session.delete(carro);
+                carro.setAtivo(false); // Remoção lógica
+                session.update(carro);
                 session.getTransaction().commit();
-                System.out.println("Carro removido com sucesso!");
+                System.out.println("Carro removido com sucesso (removido logicamente).");
             } else {
                 System.out.println("Carro com ID " + id + " não encontrado.");
             }
@@ -101,7 +100,7 @@ public class CarroService {
             session.beginTransaction();
 
             Query<Carro> query = session.createQuery(
-                "FROM Carro WHERE placa = :placa", Carro.class);
+                "FROM Carro WHERE placa = :placa AND ativo = true", Carro.class);
             query.setParameter("placa", placa);
             Carro carro = query.uniqueResult();
 
@@ -110,7 +109,7 @@ public class CarroService {
             if (carro != null) {
                 System.out.println("Carro encontrado: " + carro.getModelo() + " (" + carro.getPlaca() + ")");
             } else {
-                System.out.println("Nenhum carro encontrado com a placa: " + placa);
+                System.out.println("Nenhum carro ativo encontrado com a placa: " + placa);
             }
 
             return carro;
@@ -126,7 +125,7 @@ public class CarroService {
             session.beginTransaction();
 
             Query<Carro> query = session.createQuery(
-                "FROM Carro WHERE cliente LIKE :nome", Carro.class);
+                "FROM Carro WHERE cliente LIKE :nome AND ativo = true", Carro.class);
             query.setParameter("nome", "%" + nomeCliente + "%");
 
             List<Carro> carros = query.list();
@@ -172,4 +171,4 @@ public class CarroService {
 
         return resultado.toString();
     }
-} 
+}

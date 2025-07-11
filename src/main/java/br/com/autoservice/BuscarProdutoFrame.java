@@ -59,7 +59,7 @@ public class BuscarProdutoFrame extends JFrame {
             return;
         }
 
-        List<Produto> produtos = ProdutoService.buscarProdutosPorNome(nome);
+        List<Produto> produtos = ProdutoService.buscarProdutoPorNome(nome);
 
         StringBuilder sb = new StringBuilder();
         if (produtos.isEmpty()) {

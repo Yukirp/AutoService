@@ -10,12 +10,15 @@ public class Produto {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    
     private String nome;
     private Double preco;
     private String marca;
     private String veiculosCompativeis;
     private String descricao;
     private int quantidade;
+
+    private boolean ativo = true;  // Campo de controle de visibilidade lógica
 
     public Produto() {}
 
@@ -26,6 +29,7 @@ public class Produto {
         this.veiculosCompativeis = veiculosCompativeis;
         this.descricao = descricao;
         this.quantidade = quantidade;
+        this.ativo = true;
     }
 
     // Getters e setters
@@ -83,5 +87,13 @@ public class Produto {
 
     public void setQuantidade(int quantidade) {
         this.quantidade = quantidade;
+    }
+
+    public boolean isAtivo() {
+        return ativo;
+    }
+
+    public void setAtivo(boolean ativo) {
+        this.ativo = ativo;
     }
 }

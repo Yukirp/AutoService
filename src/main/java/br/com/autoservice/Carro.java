@@ -15,6 +15,10 @@ public class Carro {
     private String cliente;
     private String marca;
     private String modelo;
+    
+    @Column(nullable = false)
+    private boolean ativo = true;  // padrão: true
+
     private int ano;
 
     // Construtores
@@ -26,6 +30,7 @@ public class Carro {
         this.modelo = modelo;
         this.ano = ano;
         this.cliente = cliente;
+        this.ativo = true;
     }
 
     // Getters e Setters
@@ -46,4 +51,6 @@ public class Carro {
     public String getCliente() { return cliente; }
     public void setCliente(String cliente) { this.cliente = cliente; }
 
+    public boolean isAtivo() { return ativo; }
+    public void setAtivo(boolean ativo) { this.ativo = ativo; }
 }
