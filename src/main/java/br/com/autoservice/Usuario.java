@@ -12,7 +12,8 @@ public class Usuario {
     @Column(nullable = false, unique = true)
     private String login;
 
-    @Column(nullable = false)
+    // mapeia o atributo 'senha' da classe para a coluna 'senhaHash' do banco
+    @Column(name = "senhaHash", nullable = false)
     private String senha;
 
     public Usuario() {}
@@ -23,9 +24,23 @@ public class Usuario {
     }
 
     // Getters e Setters
-    public Long getId() { return id; }
-    public String getLogin() { return login; }
-    public void setLogin(String login) { this.login = login; }
-    public String getSenha() { return senha; }
-    public void setSenha(String senha) { this.senha = senha; }
+    public Long getId() { 
+        return id; 
+    }
+
+    public String getLogin() { 
+        return login; 
+    }
+
+    public void setLogin(String login) { 
+        this.login = login; 
+    }
+
+    public String getSenha() { 
+        return senha; 
+    }
+
+    public void setSenha(String senha) { 
+        this.senha = senha; 
+    }
 }

@@ -1,0 +1,107 @@
+//criar o banco de dados 
+
+CREATE DATABASE IF NOT EXISTS autoservice
+  DEFAULT CHARACTER SET utf8mb4
+  COLLATE utf8mb4_0900_ai_ci;
+
+USE autoservice;
+
+-- 2) Tabelas (compatíveis com o seu código/consultas Hibernate)
+
+-- 2.1) USUÁRIOS (hash SHA-256 em 64 chars)
+CREATE TABLE IF NOT EXISTS usuarios (
+  id        INT AUTO_INCREMENT PRIMARY KEY,
+  login     VARCHAR(50)  NOT NULL UNIQUE,
+  nome      VARCHAR(100) NOT NULL,
+  perfil    VARCHAR(20)  NOT NULL DEFAULT 'ADMIN',
+  senhaHash VARCHAR(64)  CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 2.2) CARROS (colunas iguais às usadas nos SELECTs do app)
+CREATE TABLE IF NOT EXISTS carros (
+  id       INT AUTO_INCREMENT PRIMARY KEY,
+  modelo   VARCHAR(100) NOT NULL,
+  marca    VARCHAR(60)  NOT NULL,
+  ano      INT          NOT NULL,
+  ativo    TINYINT(1)   NOT NULL DEFAULT 1,
+  cliente  VARCHAR(100) NOT NULL,
+  placa    VARCHAR(10)  NOT NULL UNIQUE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 2.3) PRODUTOS (nome da tabela conforme você usa: "Produto")
+CREATE TABLE IF NOT EXISTS `Produto` (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  ativo      TINYINT(1)   NOT NULL DEFAULT 1,
+  descricao  VARCHAR(255),
+  marca      VARCHAR(60)  NOT NULL,
+  nome       VARCHAR(100) NOT NULL,
+  preco      DECIMAL(10,2) NOT NULL,
+  quantidade INT          NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 2.4) SERVIÇOS (usa FK p/ carro; colunas vistas no seu código)
+CREATE TABLE IF NOT EXISTS servicos (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  carro_id      INT          NOT NULL,
+  descricao     VARCHAR(255),
+  valor         DECIMAL(10,2) NOT NULL DEFAULT 0,
+  data          DATE,
+  quilometragem INT          DEFAULT 0,
+  CONSTRAINT fk_serv_carro
+    FOREIGN KEY (carro_id) REFERENCES carros(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 2.5) VENDAS (produto relacionado; campos vistos no RelatorioVendaFrame)
+CREATE TABLE IF NOT EXISTS vendas (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  produto_id   INT          NOT NULL,
+  quantidade   INT          NOT NULL,
+  comprador    VARCHAR(100),
+  data_venda   DATETIME,
+  valor_total  DECIMAL(10,2) NOT NULL DEFAULT 0,
+  CONSTRAINT fk_venda_prod
+    FOREIGN KEY (produto_id) REFERENCES `Produto`(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+*******************************************************************************
+//preencher produtos
+
+USE autoservice;
+
+INSERT INTO Produto (ativo, descricao, marca, nome, preco, quantidade) VALUES
+  (1,'Fluido sintético DOT 4','Bosch','Fluido de Freio',         45.00,25),
+  (1,'Lâmpada halógena H7 55W','Osram','Lâmpada H7',             35.00,40),
+  (1,'Correia dentada 120 dentes','Dayco','Correia Dentada',    180.00,12),
+  (1,'Amortecedor dianteiro','Cofap','Amortecedor Dianteiro',   320.00,8);
+
+-- Verificar o resultado
+SELECT id, nome, quantidade, preco FROM Produto;
+o FROM Produto;
+
+*******************************************************
+//preencher carros
+
+USE autoservice;
+
+INSERT INTO carros (modelo, marca, ano, ativo, cliente, placa) VALUES
+  ('Argo 1.3',        'Fiat',       2022, b'1', 'Bruno Almeida',   'BRA1A23'),
+  ('Gol 1.6',         'Volkswagen', 2017, b'1', 'Ana Pereira',     'GOL4B56'),
+  ('Civic EXL 2.0',   'Honda',      2018, b'1', 'Pedro Martins',   'CIV7C89'),
+  ('Renegade 1.8',    'Jeep',       2019, b'1', 'Fernanda Rocha',  'REN2D34'),
+  ('Sandero 1.0',     'Renault',    2020, b'1', 'Luís Santos',     'SAN5E67'),
+  ('Ka 1.0',          'Ford',       2019, b'1', 'Paula Mendes',    'KAA8F90');
+
+************************************************************************
+//criar adm
+
+SELECT SHA2('sua senha aqui', 256);
+
+USE autoservice;
+
+INSERT INTO usuarios (login, nome, perfil, senhaHash)
+VALUES (
+  'nome de usuario adm aqui',
+  'Administrador Teste',
+  'ADMIN',
+  'hash da sua senha aqui'
+);

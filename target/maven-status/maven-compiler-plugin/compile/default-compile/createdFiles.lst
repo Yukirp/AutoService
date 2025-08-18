@@ -10,13 +10,11 @@ br/com/autoservice/CadastroServicoFrame.class
 br/com/autoservice/RelatorioVendaFrame.class
 br/com/autoservice/CadastroCarroFrame.class
 br/com/autoservice/RelatorioFrame.class
-br/com/autoservice/LoginFrame$1.class
 br/com/autoservice/VendaService.class
 br/com/autoservice/Produto.class
 br/com/autoservice/Carro.class
 br/com/autoservice/CadastroCarroFrame$1.class
 br/com/autoservice/ListarProdutosFrame.class
-br/com/autoservice/CadastroUsuarioFrame$1.class
 br/com/autoservice/HibernateUtil.class
 br/com/autoservice/Servico.class
 br/com/autoservice/BuscarProdutoFrame.class

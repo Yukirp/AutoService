@@ -4,7 +4,11 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.util.List;
-import java.text.SimpleDateFormat;
+import java.time.format.DateTimeFormatter; // usa java.time
+import java.util.Objects;
+
+import org.hibernate.Session;
+import org.hibernate.query.Query;
 
 public class RelatorioServicoFrame extends JFrame {
     private JTextArea textoArea;
@@ -34,7 +38,7 @@ public class RelatorioServicoFrame extends JFrame {
         // Painel de botões
         JPanel painelBotoes = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
         JButton exportarBtn = new JButton("📤 Exportar PDF");
-        JButton limparBtn = new JButton("🧹 Limpar Histórico");
+        JButton limparBtn   = new JButton("🧹 Limpar Histórico");
         painelBotoes.add(exportarBtn);
         painelBotoes.add(limparBtn);
         add(painelBotoes, BorderLayout.SOUTH);
@@ -49,18 +53,28 @@ public class RelatorioServicoFrame extends JFrame {
     private void carregarServicos() {
         List<Servico> servicos = ServicoService.listarServicos();
         StringBuilder sb = new StringBuilder();
-        SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-        if (servicos.isEmpty()) {
+        if (servicos == null || servicos.isEmpty()) {
             sb.append("Nenhum serviço registrado.");
         } else {
             for (Servico s : servicos) {
-                sb.append("👤 Cliente: ").append(s.getCarro().getCliente()).append("\n")
-                  .append("🚗 Carro: ").append(s.getCarro().getMarca()).append(" ").append(s.getCarro().getModelo()).append(" (").append(s.getCarro().getPlaca()).append(")").append("\n")
-                  .append("📅 Data: ").append(s.getData() != null ? sdf.format(s.getData()) : "Data não registrada").append("\n")
-                  .append("📏 Quilometragem: ").append(s.getQuilometragem()).append(" km\n")
-                  .append("🔧 Descrição: ").append(s.getDescricao()).append("\n")
-                  .append("💰 Valor: R$ ").append(String.format("%.2f", s.getValor())).append("\n")
+                Carro c = s.getCarro();
+                String cliente = (c != null && c.getCliente() != null) ? c.getCliente() : "";
+                String marca   = (c != null && c.getMarca() != null)   ? c.getMarca()   : "";
+                String modelo  = (c != null && c.getModelo() != null)  ? c.getModelo()  : "";
+                String placa   = (c != null && c.getPlaca() != null)   ? c.getPlaca()   : "";
+                String dataStr = (s.getData() != null) ? s.getData().format(fmt) : "Data não registrada";
+                String desc    = Objects.toString(s.getDescricao(), "");
+                String km      = String.valueOf(s.getQuilometragem());
+                String valor   = String.format("R$ %.2f", s.getValor());
+
+                sb.append("👤 Cliente: ").append(cliente).append("\n")
+                  .append("🚗 Carro: ").append(marca).append(" ").append(modelo).append(" (").append(placa).append(")").append("\n")
+                  .append("📅 Data: ").append(dataStr).append("\n")
+                  .append("📏 Quilometragem: ").append(km).append(" km\n")
+                  .append("🔧 Descrição: ").append(desc).append("\n")
+                  .append("💰 Valor: ").append(valor).append("\n")
                   .append("────────────────────────────\n");
             }
         }
@@ -73,21 +87,82 @@ public class RelatorioServicoFrame extends JFrame {
     }
 
     private void limparHistorico() {
-        JPasswordField senhaField = new JPasswordField();
-        int result = JOptionPane.showConfirmDialog(this, senhaField, "Digite a senha para confirmar", JOptionPane.OK_CANCEL_OPTION);
+        // 1) exige usuário logado
+        Usuario logado = UsuarioLogado.getUsuario();
+        if (logado == null) {
+            JOptionPane.showMessageDialog(this, "Nenhum usuário logado. Faça login novamente.");
+            return;
+        }
 
-        if (result == JOptionPane.OK_OPTION) {
-            String senhaDigitada = new String(senhaField.getPassword());
-            String senhaDigitadaCriptografada = SegurancaUtil.criptografar(senhaDigitada);
-            String senhaAdmCriptografada = "2f2ff0ec875a9bfa234009ac5f3f2109"; // hash MD5 da senha admin
-
-            if (senhaDigitadaCriptografada.equals(senhaAdmCriptografada)) {
-                ServicoService.limparServicos();
-                textoArea.setText("");
-                JOptionPane.showMessageDialog(this, "✅ Histórico de serviços limpo.");
-            } else {
-                JOptionPane.showMessageDialog(this, "❌ Senha incorreta.");
+        // (opcional) valida perfil ADMIN, se existir getPerfil()
+        try {
+            java.lang.reflect.Method m = logado.getClass().getMethod("getPerfil");
+            Object perfil = m.invoke(logado);
+            if (perfil == null || !"ADMIN".equalsIgnoreCase(perfil.toString())) {
+                JOptionPane.showMessageDialog(this, "Apenas administradores podem limpar o histórico.");
+                return;
             }
+        } catch (NoSuchMethodException ignore) {
+            // sem campo de perfil, ignora
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+
+        // 2) prompt de senha mostrando quem confirma
+        JPasswordField senhaField = new JPasswordField();
+        JPanel p = new JPanel(new GridLayout(2, 1, 6, 6));
+        p.add(new JLabel("Confirmar como: " + logado.getLogin()));
+        p.add(senhaField);
+
+        int result = JOptionPane.showConfirmDialog(
+                this, p, "Digite sua senha para confirmar", JOptionPane.OK_CANCEL_OPTION);
+        if (result != JOptionPane.OK_OPTION) return;
+
+        String senhaDigitada = new String(senhaField.getPassword());
+        java.util.Arrays.fill(senhaField.getPassword(), '\0');
+
+        // 3) recarrega o usuário do banco (garante usar o hash mais recente)
+        Usuario usuarioBanco = buscarUsuarioPorLogin(logado.getLogin());
+        if (usuarioBanco == null || usuarioBanco.getSenha() == null || usuarioBanco.getSenha().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Não foi possível validar suas credenciais.");
+            return;
+        }
+        String hashBanco = usuarioBanco.getSenha();
+
+        // DEBUG opcional
+        String shaCalc = SegurancaUtil.sha256Hex(senhaDigitada);
+        System.out.println("Auth(serviço) -> login=" + usuarioBanco.getLogin()
+                + ", hashLen=" + (hashBanco == null ? 0 : hashBanco.length())
+                + ", hashPrefix=" + (hashBanco == null ? "<null>" :
+                    (hashBanco.length() >= 7 ? hashBanco.substring(0, 7) : hashBanco)));
+        System.out.println("Auth(serviço) calc -> shaCalc=" + shaCalc);
+
+        // 4) valida senha (SHA-256 hex)
+        boolean ok = SegurancaUtil.verificarSenha(senhaDigitada, hashBanco);
+        if (!ok) {
+            JOptionPane.showMessageDialog(this, "❌ Senha incorreta.");
+            return;
+        }
+
+        // 5) executa limpeza
+        try {
+            ServicoService.limparServicos(); // mantém seu método atual
+            textoArea.setText("");
+            JOptionPane.showMessageDialog(this, "✅ Histórico de serviços limpo.");
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Falha ao limpar o histórico.");
+        }
+    }
+
+    /** Busca o usuário por login para validar a senha com o hash atual do banco. */
+    private Usuario buscarUsuarioPorLogin(String login) {
+        if (login == null || login.isEmpty()) return null;
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            Query<Usuario> q = session.createQuery(
+                "FROM Usuario u WHERE u.login = :login", Usuario.class);
+            q.setParameter("login", login);
+            return q.uniqueResult();
         }
     }
 }

@@ -36,10 +36,29 @@ public class ExcluirCarroFrame extends JFrame {
 
     private void excluirCarro() {
         String placa = placaField.getText().trim();
-
         if (placa.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Informe a placa do carro.");
             return;
+        }
+
+        // exige usuário logado
+        Usuario usuarioLogado = UsuarioLogado.getUsuario();
+        if (usuarioLogado == null) {
+            JOptionPane.showMessageDialog(this, "Nenhum usuário logado. Faça login novamente.");
+            return;
+        }
+
+        // (opcional) valida perfil ADMIN se houver getPerfil()
+        try {
+            java.lang.reflect.Method m = usuarioLogado.getClass().getMethod("getPerfil");
+            Object perfil = m.invoke(usuarioLogado);
+            if (perfil == null || !"ADMIN".equalsIgnoreCase(perfil.toString())) {
+                JOptionPane.showMessageDialog(this, "Apenas administradores podem excluir carros.");
+                return;
+            }
+        } catch (NoSuchMethodException ignore) {
+        } catch (Exception ex) {
+            ex.printStackTrace();
         }
 
         Carro carro = CarroService.buscarCarroPorPlaca(placa);
@@ -55,59 +74,88 @@ public class ExcluirCarroFrame extends JFrame {
             "Confirmar exclusão",
             JOptionPane.YES_NO_OPTION
         );
+        if (confirm != JOptionPane.YES_OPTION) return;
 
-        if (confirm == JOptionPane.YES_OPTION) {
-            JPasswordField passwordField = new JPasswordField();
-            int result = JOptionPane.showConfirmDialog(
-                this,
-                passwordField,
-                "Digite a senha de administrador:",
-                JOptionPane.OK_CANCEL_OPTION
-            );
+        // pede a senha do PRÓPRIO usuário logado e mostra quem está confirmando
+        JPasswordField passwordField = new JPasswordField();
+        JPanel p = new JPanel(new java.awt.GridLayout(2, 1, 6, 6));
+        p.add(new JLabel("Confirmar como: " + usuarioLogado.getLogin()));
+        p.add(passwordField);
+        int result = JOptionPane.showConfirmDialog(
+            this, p, "Digite sua senha (administrador):", JOptionPane.OK_CANCEL_OPTION
+        );
+        if (result != JOptionPane.OK_OPTION) return;
 
-            if (result == JOptionPane.OK_OPTION) {
-                String senhaDigitada = new String(passwordField.getPassword());
-                String senhaDigitadaCriptografada = SegurancaUtil.criptografar(senhaDigitada);
-                String senhaAdmCriptografada = "2f2ff0ec875a9bfa234009ac5f3f2109"; 
+        char[] senhaChars = passwordField.getPassword();
+        String senhaDigitada = new String(senhaChars);
+        java.util.Arrays.fill(senhaChars, '\0');
 
-                if (senhaDigitadaCriptografada.equals(senhaAdmCriptografada)) {
-                    try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-                        session.beginTransaction();
-                        session.clear();
-                        carro = session.get(Carro.class, carro.getId());
+        // recarrega o usuário do banco e verifica com SHA-256
+        Usuario usuarioParaValidar = buscarUsuarioPorLogin(usuarioLogado.getLogin());
+        if (usuarioParaValidar == null || usuarioParaValidar.getSenha() == null || usuarioParaValidar.getSenha().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Não foi possível carregar seus dados de autenticação.");
+            return;
+        }
 
-                        if (carro == null) {
-                            JOptionPane.showMessageDialog(this, "Carro não encontrado na base de dados.");
-                            return;
-                        }
+        String hashBanco = usuarioParaValidar.getSenha(); // coluna senhaHash
+        // debug útil
+        String shaCalc = SegurancaUtil.sha256Hex(senhaDigitada);
+        System.out.println("Auth debug -> login=" + usuarioParaValidar.getLogin()
+                + ", hashLen=" + (hashBanco == null ? 0 : hashBanco.length())
+                + ", hashPrefix=" + (hashBanco == null ? "<null>" :
+                    (hashBanco.length() >= 7 ? hashBanco.substring(0,7) : hashBanco))
+        );
+        System.out.println("Auth calc  -> shaCalc=" + shaCalc + " (len=" + shaCalc.length() + ")");
 
-                        Query<Servico> query = session.createQuery(
-                            "FROM Servico WHERE carro.id = :carroId", Servico.class
-                        );
-                        query.setParameter("carroId", carro.getId());
-                        List<Servico> servicos = query.list();
+        boolean ok = SegurancaUtil.verificarSenha(senhaDigitada, hashBanco);
+        if (!ok) {
+            JOptionPane.showMessageDialog(this, "Senha incorreta.");
+            return;
+        }
 
-                        File pdf = RelatorioPDF.gerarRelatorioServicos(carro, servicos);
-                        System.out.println("Relatório salvo em: " + pdf.getAbsolutePath());
+        // senha válida → executa exclusão + relatório
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            session.beginTransaction();
 
-                        for (Servico s : servicos) {
-                            session.delete(s);
-                        }
-
-                        session.delete(carro);
-                        session.getTransaction().commit();
-
-                        JOptionPane.showMessageDialog(this, "Carro e serviços excluídos com sucesso.");
-                        dispose();
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        JOptionPane.showMessageDialog(this, "Erro ao excluir o carro e serviços.");
-                    }
-
-                } else {
-                    JOptionPane.showMessageDialog(this, "Senha incorreta.");
-                }
+            Carro carroManaged = session.get(Carro.class, carro.getId());
+            if (carroManaged == null) {
+                JOptionPane.showMessageDialog(this, "Carro não encontrado na base de dados.");
+                session.getTransaction().rollback();
+                return;
             }
+
+            // ajuste a entidade se for ServicoRealizado
+            Query<Servico> query = session.createQuery(
+                "FROM Servico s WHERE s.carro.id = :carroId", Servico.class
+            );
+            query.setParameter("carroId", carroManaged.getId());
+            List<Servico> servicos = query.list();
+
+            File pdf = RelatorioPDF.gerarRelatorioServicos(carroManaged, servicos);
+            System.out.println("Relatório salvo em: " + pdf.getAbsolutePath());
+
+            for (Servico s : servicos) {
+                session.delete(s);
+            }
+
+            session.delete(carroManaged);
+            session.getTransaction().commit();
+
+            JOptionPane.showMessageDialog(this, "Carro e serviços excluídos com sucesso.");
+            dispose();
+        } catch (Exception e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Erro ao excluir o carro e serviços.");
+        }
+    }
+
+    private Usuario buscarUsuarioPorLogin(String login) {
+        if (login == null || login.isEmpty()) return null;
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            Query<Usuario> q = session.createQuery(
+                "FROM Usuario u WHERE u.login = :login", Usuario.class);
+            q.setParameter("login", login);
+            return q.uniqueResult();
         }
     }
 }

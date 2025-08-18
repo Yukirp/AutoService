@@ -3,9 +3,10 @@ package br.com.autoservice;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 
 import org.hibernate.Session;
+import org.hibernate.Transaction;
+import org.hibernate.query.Query;
 
 public class CadastroUsuarioFrame extends JFrame {
 
@@ -14,7 +15,7 @@ public class CadastroUsuarioFrame extends JFrame {
 
     public CadastroUsuarioFrame() {
         setTitle("Cadastro de Usuário");
-        setSize(350, 200);
+        setSize(360, 210);
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setLocationRelativeTo(null);
 
@@ -38,36 +39,55 @@ public class CadastroUsuarioFrame extends JFrame {
 
         add(panel);
 
-        cadastrarButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                cadastrarUsuario();
-            }
-        });
+        cadastrarButton.addActionListener((ActionEvent e) -> cadastrarUsuario());
 
         setVisible(true);
     }
 
     private void cadastrarUsuario() {
-        String login = loginField.getText();
-        String senha = new String(senhaField.getPassword());
+        String login = loginField.getText() == null ? "" : loginField.getText().trim();
+        char[] senhaArr = senhaField.getPassword();
+        String senha = new String(senhaArr);
+        java.util.Arrays.fill(senhaArr, '\0'); // limpa da memória
 
-        if (login.isBlank() || senha.isBlank()) {
-            JOptionPane.showMessageDialog(this, "Preencha todos os campos.");
+        // validações simples
+        if (login.isEmpty() || senha.isBlank()) {
+            JOptionPane.showMessageDialog(this, "Preencha login e senha.");
+            return;
+        }
+        if (login.length() < 3) {
+            JOptionPane.showMessageDialog(this, "O login deve ter pelo menos 3 caracteres.");
+            return;
+        }
+        if (senha.length() < 6) {
+            JOptionPane.showMessageDialog(this, "A senha deve ter pelo menos 6 caracteres.");
             return;
         }
 
-        String senhaCriptografada = SegurancaUtil.criptografar(senha);
-
-        Usuario novoUsuario = new Usuario(login, senhaCriptografada);
+        // gera hash SHA-256 em hex minúsculo (64 chars)
+        String senhaHash = SegurancaUtil.sha256Hex(senha);
 
         try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-            session.beginTransaction();
+            // já existe login?
+            Query<Long> q = session.createQuery(
+                "select count(u.id) from Usuario u where u.login = :login", Long.class);
+            q.setParameter("login", login);
+            Long jaExiste = q.uniqueResult();
+            if (jaExiste != null && jaExiste > 0) {
+                JOptionPane.showMessageDialog(this, "Login já existe. Escolha outro.");
+                return;
+            }
+
+            // salva
+            Transaction tx = session.beginTransaction();
+            Usuario novoUsuario = new Usuario(login, senhaHash); // Usuario(login, senhaHash)
             session.save(novoUsuario);
-            session.getTransaction().commit();
+            tx.commit();
+
             JOptionPane.showMessageDialog(this, "Usuário cadastrado com sucesso!");
-            new LoginFrame(); // redireciona para login
             dispose();
+            new LoginFrame(); // abre tela de login
+
         } catch (Exception e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(this, "Erro ao cadastrar usuário.");
